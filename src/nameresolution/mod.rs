@@ -552,7 +552,7 @@ impl<'c> NameResolver {
 
         cache.name_resolvers.push(resolver);
         let resolver = cache.name_resolvers.get_mut(module_id.0).unwrap();
-        builtin::import_prelude(resolver, cache);
+        builtin::import_stdlib(resolver, cache);
 
         let ast = cache.parse_trees.get_mut(module_id.0).unwrap();
         ast.declare(resolver, cache);

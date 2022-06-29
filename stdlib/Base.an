@@ -1,0 +1,8 @@
+trait Eq t with (==): t - t -> bool
+
+/// A type conversion from a to b
+trait Cast a b with
+    cast: a -> b
+
+trait Append a with
+    (++): a - a -> a

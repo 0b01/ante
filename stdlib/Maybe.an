@@ -1,0 +1,19 @@
+type Maybe t =
+   | None
+   | Some t
+
+impl Eq (Maybe e) given Eq e with
+    (==) l r =
+        match l, r
+        | Some lv, Some rv -> lv == rv
+        | None, None -> true
+        | _ -> false
+
+impl Cast (Maybe m) string given Cast m string with
+    cast maybe =
+        match maybe
+        | Some val -> "Some (" ++ cast val ++ ")"
+        | None -> "None"
+
+none = None
+some a = Some a

@@ -1,0 +1,21 @@
+// Bitwise functions
+
+// Should these be traits instead?
+band (x: t) (y: t) : t =
+    // Workaround: explicit 'given' clauses on functions are unimplemented
+    // currently so this will manually add the desired `Int t` restriction.
+    // Alternatively we could move this to a trait and only impl for Int t
+    x + 0
+    builtin "BitwiseAnd" x y
+
+bor (x: t) (y: t) : t =
+    x + 0
+    builtin "BitwiseOr" x y
+
+bxor (x: t) (y: t) : t =
+    x + 0
+    builtin "BitwiseXor" x y
+
+bnot (x: t) : t =
+    x + 0
+    builtin "BitwiseNot" x

@@ -5,12 +5,13 @@
     into every Ante source file.
 */
 
+import Maybe
+
 //C functions
 extern 
-    // varargs is not supported by the cranelift backend
-    // printf: Ptr char - ... -> unit
     puts: Ptr char -> i32
     putchar: char -> unit
+    printf: Ptr char -> unit
     getchar: unit -> char
     exit: i32 -> never_returns
     malloc: usz -> Ptr a
@@ -51,20 +52,9 @@ extern
 // fgetchar f = fgetc f as char
 // feofb f = feof f as bool
 
-type Maybe t =
-   | None
-   | Some t
-
 type Result t e =
    | Ok t
    | Error e
-
-impl Eq (Maybe e) given Eq e with
-    (==) l r =
-        match l, r
-        | Some lv, Some rv -> lv == rv
-        | None, None -> true
-        | _ -> false
 
 first (a, _) = a
 second (_, b) = b
@@ -72,24 +62,11 @@ third (_, _, c) = c
 fourth (_, _, _, d) = d
 fifth (_, _, _, _, e) = e
 
-/// A type conversion from a to b
-trait Cast a b with
-    cast: a -> b
-
-impl Cast a a with
-    cast a = a
-
 impl Cast (Ptr a) usz with
     cast ptr = transmute ptr
 
 impl Cast usz (Ptr a) with
     cast address = transmute address
-
-impl Cast (Maybe m) string given Cast m string with
-    cast maybe =
-        match maybe
-        | Some val -> "Some (" ++ cast val ++ ")"
-        | None -> "None"
 
 // Begin wall of casts
 impl Cast u8 u16 with cast x = builtin "ZeroExtend" x
@@ -222,7 +199,6 @@ impl Mod usz with (%) x y = builtin "ModUnsigned" x y
 // Cranelift backend does not support floating-point remainder or modulus
 // impl Mod float with (%) (_: float) (_: float) : float = builtin "ModFloat"
 
-trait Eq t with (==): t - t -> bool
 impl Eq t given Int t with (==) x y = builtin "EqInt" x y
 impl Eq float with (==) (x: float) (y: float) : bool = builtin "EqFloat" x y
 
@@ -263,41 +239,11 @@ impl TryCast u64 i64 with
         if x > 9_223_372_036_854_775_807 then None
         else Some (transmute x)
 
-trait Append a with
-    (++): a - a -> a
-
 trait Extract collection index -> elem with
     (#): collection - index -> elem
 
 impl Extract (Ptr t) usz t with
     (#) ptr index = deref_ptr <| offset ptr index
-
-
-// Bitwise functions
-// TODO: Move these to separate module
-//       Currently this is prevented by the use of 'builtin'
-//       which is limited to the prelude.
-
-// Should these be traits instead?
-band (x: t) (y: t) : t =
-    // Workaround: explicit 'given' clauses on functions are unimplemented
-    // currently so this will manually add the desired `Int t` restriction.
-    // Alternatively we could move this to a trait and only impl for Int t
-    x + 0
-    builtin "BitwiseAnd" x y
-
-bor (x: t) (y: t) : t =
-    x + 0
-    builtin "BitwiseOr" x y
-
-bxor (x: t) (y: t) : t =
-    x + 0
-    builtin "BitwiseXor" x y
-
-bnot (x: t) : t =
-    x + 0
-    builtin "BitwiseNot" x
-
 
 type Type t = | MkType
 
@@ -337,9 +283,6 @@ transmute (x: a) : b =
 
 trait In elem col with
     (in): elem - col -> bool
-
-// trait Deref ptr -> elem
-//     deref: ptr -> elem
 
 // TODO: Do we need a separate trait for unary '-'?
 // trait Neg t
@@ -395,10 +338,9 @@ print_float f =
         // Show up to 5 decimal places
         print_unsigned (cast (f2 * 10_000.0))
 
-impl Print string with printne s =
-    print_string s
+impl Print (Ptr char) with printne s = printf s
 
-impl Print (Ptr char) with printne s = print_c_string s
+impl Print string with printne s = printne s.c_string
 
 impl Print (Maybe a) given Print a with
     printne m =
@@ -430,34 +372,14 @@ print_signed (x: i64) (min: i64) (min_string: string) : unit =
     else
         print_unsigned <| unwrap <| try_cast x
 
-print_string (s: string) : unit =
-    go (s2: string) i =
-        if i < s2.length then
-            off = offset (s2.c_string) i
-            c = deref_ptr off
-            putchar c
-            go s2 (i + 1)
-
-    go s 0
-
-print_c_string (s: Ptr char) : unit =
-    go (s: Ptr char) i =
-        c = deref_ptr (offset s i)
-        if c != '\0' then
-            putchar c
-            go s (i + 1)
-
-    go s 0
-
 impl Print bool with
     printne b =
         if b then printne "true"
         else printne "false"
 
 // TODO: This impl would conflict with others
-// impl Print t given Cast t string
-//     printne t = printne (t as string)
-
+impl Print t given Cast t string with
+    printne t = printne (cast t string)
 
 impl Cast string (Ptr char) with
     cast s = s.c_string
@@ -514,7 +436,6 @@ impl Eq (ref t) given Eq t with
 impl Eq (Ptr t) given Cast (Ptr t) usz with
     (==) l r = (transmute l : usz) == transmute r
 
-
 trait Iterator it -> elem with
     next: it -> Maybe (it, elem)
 
@@ -539,7 +460,7 @@ iter_range (from: usz) (to: usz) f : unit =
     iter (Range from to) f
 
 repeat (count: usz) f : unit =
-    iter (Range 0 count) f
+    iter_range (0 count) f
 
 // Iterating through an InFile iterates through each line
 // impl Iterator InFile string
@@ -569,10 +490,10 @@ impl Append string with
         len = s1.length + s2.length
         buf = malloc (len + 1)
 
-        memcpy buf (s1.c_string) (cast s1.length)
+        memcpy buf (s1.c_string) s1.length
 
         buf_offset = cast (cast buf + s1.length)
-        memcpy buf_offset (s2.c_string) (cast s2.length + 1) //copy terminating null too
+        memcpy buf_offset (s2.c_string) (s2.length + 1) //copy terminating null too
 
         string buf len
 

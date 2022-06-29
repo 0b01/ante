@@ -65,14 +65,18 @@ pub fn prelude_path() -> PathBuf {
     crate::util::stdlib_dir().join("prelude.an")
 }
 
-pub fn import_prelude<'a>(resolver: &mut NameResolver, cache: &mut ModuleCache<'a>) {
-    if resolver.filepath == prelude_path() {
-        // If we're in the prelude include the built-in symbol "builtin" to define primitives
+pub fn base_path() -> PathBuf {
+    crate::util::stdlib_dir().join("Base.an")
+}
+
+pub fn import_stdlib<'a>(resolver: &mut NameResolver, cache: &mut ModuleCache<'a>) {
+    if resolver.filepath.starts_with(crate::util::stdlib_dir()) {
+        // If we're in the stdlib include the built-in symbol "builtin" to define primitives
         resolver.current_scope().definitions.insert("builtin".into(), BUILTIN_ID);
-    } else {
-        // Otherwise, import the prelude itself
-        let prelude_dir = prelude_path();
-        if let Some(id) = declare_module(&prelude_dir, cache, Location::builtin()) {
+    }
+    
+    if resolver.filepath != base_path() && resolver.filepath != prelude_path() {
+        if let Some(id) = declare_module(&base_path(), cache, Location::builtin()) {
             let exports = define_module(id, cache, Location::builtin()).unwrap();
             resolver.current_scope().import(exports, cache, Location::builtin(), &HashSet::new());
         }

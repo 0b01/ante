@@ -21,7 +21,7 @@ reserve (s: ref StringBuilder) (n: usz) : unit =
 // append a string
 append (s: ref StringBuilder) (new_str: string) : unit =
     reserve s new_str.length
-    memcpy (cast (cast s.data + s.length)) new_str.c_string (cast (new_str.length+1))
+    memcpy (cast (cast s.data + s.length)) new_str.c_string (new_str.length+1)
     s.&length := s.length + new_str.length
 
 // convert to string
